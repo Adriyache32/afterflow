@@ -1253,9 +1253,9 @@ finally {
     }
 
     constexpr char const* VERSION_URL =
-        "https://raw.githubusercontent.com/afterflow-gd/version/refs/heads/main/version.txt";
+        "https://raw.githubusercontent.com/afterflow-gd/afterflow/refs/heads/main/version.txt";
     constexpr char const* RELEASE_URL_PREFIX =
-        "https://github.com/afterflow-gd/version/releases/tag/";
+        "https://github.com/afterflow-gd/afterflow/releases/tag/";
 
     std::string cleanVersion(std::string versionText) {
         auto isWhitespace = [](char character) {
