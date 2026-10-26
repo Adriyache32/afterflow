@@ -52,6 +52,8 @@ systemctl --user daemon-reload
 systemctl --user enable --now afterflow-terminal.service
 ```
 
+the service starts with your user session and reads the running hyprland environment itself, so you do not need to import wayland variables manually. after updating, re-copy the unit and run `systemctl --user daemon-reload` then `systemctl --user restart afterflow-terminal.service`. if f9 still does nothing, check `/dev/shm/afterflow-<user>/watch.log`, `/dev/shm/afterflow-<user>/kitty.log`, and `journalctl --user -u afterflow-terminal.service`
+
 requires `kitty` on linux/proton. native windows uses powershell and needs no service. on hyprland the service also applies a floating centered window rule and raises the window above the game. on other compositors the log window still opens but placement is left to the window manager
 
 ## build

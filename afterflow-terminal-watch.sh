@@ -2,6 +2,7 @@
 
 set -u
 umask 077
+export PATH="${HOME:-}/.local/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
 RUNDIR="/dev/shm/afterflow-$(id -un)"
 if [ ! -d /dev/shm ] || [ ! -w /dev/shm ]; then
@@ -22,9 +23,35 @@ if [ "$RUNDIR" != "$LEGACY" ]; then
     rm -f "$LEGACY/terminal.log" "$LEGACY/watch.log" "$LEGACY/kitty.log" 2>/dev/null || true
 fi
 
+log_line() {
+    local line
+    line="$(date '+%H:%M:%S') $*"
+    printf '%s\n' "$line" >>"$LOG" 2>/dev/null || true
+    printf '%s\n' "$line" >&2
+}
+
+import_hyprland_env() {
+    local comm pid entry
+    for comm in /proc/[0-9]*/comm; do
+        [ "$(cat "$comm" 2>/dev/null)" = "Hyprland" ] || continue
+        pid="${comm#/proc/}"
+        pid="${pid%/comm}"
+        [ -r "/proc/$pid/environ" ] || continue
+        while IFS= read -r -d '' entry; do
+            case "$entry" in
+                WAYLAND_DISPLAY=*|HYPRLAND_INSTANCE_SIGNATURE=*|XDG_RUNTIME_DIR=*|DISPLAY=*|XDG_SESSION_TYPE=*|XDG_CURRENT_DESKTOP=*|DBUS_SESSION_BUS_ADDRESS=*)
+                    export "$entry"
+                    ;;
+            esac
+        done < "/proc/$pid/environ"
+        return 0
+    done
+    return 1
+}
+
 ensure_rule() {
     command -v hyprctl >/dev/null 2>&1 || return 0
-    hyprctl eval 'hl.window_rule({name="afterflow-terminal", match={class="^(afterflow)$"}, float=true, size={"1000","700"}})' >/dev/null 2>&1 || true
+    hyprctl eval 'hl.window_rule({name="afterflow-terminal", match={class="^(afterflow|afterflow-nocapture)$"}, float=true, size={"1000","700"}})' >/dev/null 2>&1 || true
 }
 
 terminal_enabled() {
@@ -35,11 +62,12 @@ stamp() {
     stat -c '%i:%y:%s' "$TRIGGER" 2>/dev/null || true
 }
 
+import_hyprland_env || true
 ensure_rule
 
 last="$(stamp)"
 if [ -n "$last" ]; then
-    printf '%s ignoring pre-existing trigger\n' "$(date '+%H:%M:%S')" >>"$LOG"
+    log_line "ignoring pre-existing trigger"
 fi
 
 while true; do
@@ -48,15 +76,22 @@ while true; do
         last="$current"
         rm -f "$TRIGGER" 2>/dev/null || true
         if ! terminal_enabled; then
-            printf '%s terminal disabled\n' "$(date '+%H:%M:%S')" >>"$LOG"
+            log_line "terminal disabled"
             continue
         fi
-        printf '%s opening kitty\n' "$(date '+%H:%M:%S')" >>"$LOG"
+        if ! import_hyprland_env; then
+            log_line "hyprland environment unavailable"
+        fi
+        if ! command -v kitty >/dev/null 2>&1; then
+            log_line "kitty not found on path"
+            continue
+        fi
+        log_line "opening kitty"
         ensure_rule
         if [ -r "$LAUNCHER" ]; then
             /bin/bash "$LAUNCHER" >>"$LOG" 2>&1 || true
         else
-            printf '%s launcher missing: %s\n' "$(date '+%H:%M:%S')" "$LAUNCHER" >>"$LOG"
+            log_line "launcher missing: $LAUNCHER"
         fi
     fi
     sleep 0.2

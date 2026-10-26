@@ -645,11 +645,14 @@ raise_window() {
         ws="$(hyprctl activeworkspace -j 2>/dev/null | sed -n 's/.*"id": *\([0-9][0-9]*\).*/\1/p' | head -n 1)"
     fi
     [ -n "${ws:-}" ] || ws=1
-    hyprctl dispatch "hl.dsp.window.move({ workspace = $ws, window = \"class:afterflow\" })" >/dev/null 2>&1 || true
-    hyprctl dispatch "hl.dsp.window.center({ window = \"class:afterflow\" })" >/dev/null 2>&1 || true
-    hyprctl dispatch "hl.dsp.window.bring_to_top({ window = \"class:afterflow\" })" >/dev/null 2>&1 || true
-    hyprctl dispatch "hl.dsp.window.alter_zorder({ mode = \"top\", window = \"class:afterflow\" })" >/dev/null 2>&1 || true
-    hyprctl dispatch "hl.dsp.focus({ window = \"class:afterflow\" })" >/dev/null 2>&1 || true
+    local cls
+    for cls in afterflow afterflow-nocapture; do
+        hyprctl dispatch "hl.dsp.window.move({ workspace = $ws, window = \"class:$cls\" })" >/dev/null 2>&1 || true
+        hyprctl dispatch "hl.dsp.window.center({ window = \"class:$cls\" })" >/dev/null 2>&1 || true
+        hyprctl dispatch "hl.dsp.window.bring_to_top({ window = \"class:$cls\" })" >/dev/null 2>&1 || true
+        hyprctl dispatch "hl.dsp.window.alter_zorder({ mode = \"top\", window = \"class:$cls\" })" >/dev/null 2>&1 || true
+        hyprctl dispatch "hl.dsp.focus({ window = \"class:$cls\" })" >/dev/null 2>&1 || true
+    done
 }
 
 terminal_running() {
@@ -677,7 +680,7 @@ if terminal_running; then
     if command -v jq >/dev/null 2>&1; then
         active_ws="$(hyprctl activeworkspace -j 2>/dev/null | jq -r '.id // empty' | head -n 1)"
         active_addr="$(hyprctl activewindow -j 2>/dev/null | jq -r '.address // empty' | head -n 1)"
-        terminal_info="$(hyprctl clients -j 2>/dev/null | jq -r '.[] | select(.class == "afterflow") | "\(.address) \(.workspace.id)"' | head -n 1)"
+        terminal_info="$(hyprctl clients -j 2>/dev/null | jq -r '.[] | select(.class == "afterflow" or .class == "afterflow-nocapture") | "\(.address) \(.workspace.id)"' | head -n 1)"
         terminal_addr="${terminal_info%% *}"
         terminal_ws="${terminal_info##* }"
         if [ -n "${terminal_addr:-}" ] && { [ "$terminal_addr" != "${active_addr:-}" ] || [ "$terminal_ws" != "${active_ws:-}" ]; }; then
@@ -1428,6 +1431,7 @@ finally {
 
     void toggleTerminal() {
         if (!isTerminalEnabled()) {
+            log::info("terminal toggle ignored (disabled)");
             return;
         }
 
@@ -1445,6 +1449,7 @@ finally {
             std::ofstream triggerFile(openTriggerPath, std::ios::trunc);
             if (triggerFile) {
                 triggerFile << "toggle\n";
+                log::info("wrote kitty trigger {}", openTriggerPath.string());
             }
             else {
                 log::warn("could not write kitty trigger {}", openTriggerPath.string());

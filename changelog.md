@@ -1,6 +1,6 @@
 # v2.1.2
 
-MacOS support is here! mac users can nwo use afterflow.
+macos support
 
 # v2.1.1
 
