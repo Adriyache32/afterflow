@@ -1,0 +1,56 @@
+{
+    "geode": "5.11.2",
+    "gd": {
+        "win": "2.2081",
+        "mac": "2.2081"
+    },
+    "id": "afterflow.prsevend",
+    "name": "Afterflow",
+    "version": "v2.1.2",
+    "developer": "prsevend",
+    "description": "a predictive input cheat that fixes your early clicks and makes them accurate.",
+    "tags": [
+        "gameplay",
+        "utility",
+        "developer"
+    ],
+    "settings": {
+        "terminal-title": {
+            "type": "title",
+            "name": "terminal",
+            "description": "terminal window options"
+        },
+        "terminal-enabled": {
+            "type": "bool",
+            "name": "enable terminal",
+            "description": "allow the terminal key to open the afterflow log window",
+            "default": true
+        },
+        "capture-exclusion": {
+            "type": "bool",
+            "name": "hide terminal from captures",
+            "description": "keep the terminal out of obs and other captures on hyprland and windows",
+            "default": false,
+            "platforms": ["win"]
+        },
+        "keybinds-title": {
+            "type": "title",
+            "name": "keybinds",
+            "description": "change geodes keybinding anytime for afterflow"
+        },
+        "keybind-stage": {
+            "type": "keybind",
+            "name": "cycle stages",
+            "description": "cycle prediction stages",
+            "category": "gameplay",
+            "default": ["F6"]
+        },
+        "keybind-terminal": {
+            "type": "keybind",
+            "name": "terminal",
+            "description": "open or close the afterflow terminal",
+            "category": "universal",
+            "default": ["F9"]
+        }
+    }
+}

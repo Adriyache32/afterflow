@@ -1,0 +1,50 @@
+# v2.1.2
+
+MacOS support is here! mac users can nwo use afterflow.
+[very fucking wip] added "hidden" mode (WINDOWS AND LINUX ONLY (linux hyprland wayland) doesnt show terminal while screensharing and screen recording like obs.)
+
+# v2.1.1
+
+- [fix] terminal runtime files are now per-user (`/tmp/afterflow-<user>`), so switching Linux accounts no longer leaves stale triggers, close files or logs that stop the terminal from opening or make kitty open and close in a loop.
+- the terminal watcher ignores a trigger that existed before it started, so a stale trigger from a previous session cant reopen kitty on login
+- [fix] terminal not showing up when clicked on custom set userkeybind or f9.
+
+# v2.1.0
+
+- f6 and f9 are now real geode keybinds instead of hard coded non-changable set configs (i realized that people with 60% kbs dont have function keys so i "fixed" this.) 
+- first install comes with a tutorial that tells them how to change the keybinds for the terminal and the cycling
+- the terminal toggle is no longer a hardcoded keyboard hook; it listens for the keybind setting press.
+
+# v2.0.5
+
+- fixed ghost predictions and death effects running while paused
+
+# v2.0.4
+
+- close terminal via F9 (Linux & Windows)
+- [afterflow] terminal
+
+# v2.0.3
+
+- fix visual (dash) orbs bugging
+- added 10f / 5f @ 60fps (stage 7)
+
+# v2.0.2
+
+- added the version check. reads `version.txt` on launch and when a level starts, at most every 10 minutes.
+- if it differs from the installed version, the console and terminal say `out of date` with the release link, and the menu shows a `dismiss` / `update` popup. `update` opens your default browser.
+
+# v2.0.1
+
+- new purple diamond icon.
+- terminal, window class and log paths renamed.
+- f9 opens kitty on linux/proton or cmd on windows.
+- f6 works while the terminal is focused.
+
+# v2.0.0
+
+- whole undetected revamp for afterflow (was previously afterglow/moonsky)
+
+# v1.0.0
+
+inital release

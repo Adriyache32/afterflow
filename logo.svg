@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="72%">
+      <stop offset="0%" stop-color="#2a1245"/>
+      <stop offset="55%" stop-color="#150a24"/>
+      <stop offset="100%" stop-color="#08050d"/>
+    </radialGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f3e8ff"/>
+      <stop offset="45%" stop-color="#c084fc"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="fill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#c084fc" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#6d28d9" stop-opacity="0.10"/>
+    </linearGradient>
+    <linearGradient id="cursorFill" x1="8" y1="8" x2="21" y2="21" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f3e8ff"/>
+      <stop offset="45%" stop-color="#c084fc"/>
+      <stop offset="100%" stop-color="#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="xFill" x1="202" y1="202" x2="310" y2="310" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f3e8ff"/>
+      <stop offset="55%" stop-color="#c084fc"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+    <filter id="xGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="cursorGlow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="0.55" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="16" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="softGlow" x="-120%" y="-120%" width="340%" height="340%">
+      <feGaussianBlur stdDeviation="34"/>
+    </filter>
+  </defs>
+
+  <rect x="8" y="8" width="496" height="496" rx="100" fill="url(#bg)"/>
+  <rect x="8" y="8" width="496" height="496" rx="100" fill="none" stroke="#000000" stroke-width="20"/>
+  <rect x="22" y="22" width="468" height="468" rx="86" fill="none" stroke="url(#edge)" stroke-width="7" stroke-opacity="0.95"/>
+
+  <g transform="translate(56 56) scale(16.6667)">
+    <path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"
+          fill="url(#fill)" stroke="#a855f7" stroke-width="2.6" stroke-opacity="0.55"
+          stroke-linejoin="round" filter="url(#softGlow)"/>
+    <path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"
+          fill="none" stroke="#0b0614" stroke-width="3.1" stroke-linejoin="round"/>
+    <path d="M2.7 10.3a2.41 2.41 0 0 0 0 3.41l7.59 7.59a2.41 2.41 0 0 0 3.41 0l7.59-7.59a2.41 2.41 0 0 0 0-3.41l-7.59-7.59a2.41 2.41 0 0 0-3.41 0Z"
+          fill="url(#fill)" stroke="url(#edge)" stroke-width="1.55"
+          stroke-linejoin="round" filter="url(#glow)"/>
+  </g>
+
+  <circle cx="256" cy="256" r="150" fill="none" stroke="#a855f7" stroke-opacity="0.10" stroke-width="2"/>
+
+  <!-- x inside the diamond, with a dark outline -->
+  <g fill="none" stroke="#0b0614" stroke-width="34" stroke-linecap="round">
+    <path d="M202 202 310 310"/>
+    <path d="M310 202 202 310"/>
+  </g>
+  <g fill="none" stroke="url(#xFill)" stroke-width="20" stroke-linecap="round" filter="url(#xGlow)">
+    <path d="M202 202 310 310"/>
+    <path d="M310 202 202 310"/>
+  </g>
+
+  <!-- cursor outside the diamond, clicking the x -->
+  <g transform="translate(205.5 205.5) scale(10.5)">
+    <path d="m9 9 5 12 1.8-5.2L21 14Z"
+          fill="url(#cursorFill)" stroke="#0b0614" stroke-width="0.95" stroke-linejoin="round"
+          filter="url(#cursorGlow)"/>
+  </g>
+</svg>
