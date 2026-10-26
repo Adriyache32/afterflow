@@ -11,7 +11,6 @@ TRIGGER="$RUNDIR/open-kitty"
 LAUNCHER="$RUNDIR/terminal.sh"
 LOG="$RUNDIR/watch.log"
 ENABLED="$RUNDIR/terminal-enabled"
-CAPTURE="$RUNDIR/capture-exclusion"
 LEGACY="/tmp/afterflow-$(id -un)"
 
 mkdir -p "$RUNDIR" 2>/dev/null || true
@@ -25,15 +24,7 @@ fi
 
 ensure_rule() {
     command -v hyprctl >/dev/null 2>&1 || return 0
-    local capture=0
-    if [ -r "$CAPTURE" ]; then
-        capture="$(cat "$CAPTURE" 2>/dev/null || printf '0')"
-    fi
-    if [ "$capture" = "1" ]; then
-        hyprctl eval 'hl.window_rule({name="afterflow-terminal", match={class="^(afterflow|afterflow-nocapture)$"}, float=true, size={"1000","700"}, no_screen_share=true})' >/dev/null 2>&1 || true
-    else
-        hyprctl eval 'hl.window_rule({name="afterflow-terminal", match={class="^(afterflow|afterflow-nocapture)$"}, float=true, size={"1000","700"}, no_screen_share=false})' >/dev/null 2>&1 || true
-    fi
+    hyprctl eval 'hl.window_rule({name="afterflow-terminal", match={class="^(afterflow)$"}, float=true, size={"1000","700"}})' >/dev/null 2>&1 || true
 }
 
 terminal_enabled() {

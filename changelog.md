@@ -1,7 +1,6 @@
 # v2.1.2
 
 MacOS support is here! mac users can nwo use afterflow.
-[very fucking wip] added "hidden" mode (WINDOWS AND LINUX ONLY (linux hyprland wayland) doesnt show terminal while screensharing and screen recording like obs.)
 
 # v2.1.1
 

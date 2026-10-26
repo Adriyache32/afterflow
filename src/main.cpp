@@ -481,10 +481,6 @@ namespace {
         return Mod::get()->getSettingValue<bool>("terminal-enabled");
     }
 
-    bool isCaptureExclusionEnabled() {
-        return Mod::get()->getSettingValue<bool>("capture-exclusion");
-    }
-
     std::filesystem::path macTerminalCommandPath() {
         return macRuntimeDir() / "afterflow-terminal.command";
     }
@@ -501,10 +497,6 @@ namespace {
         return wineRuntimeDir() / "terminal-enabled";
     }
 
-    std::filesystem::path captureExclusionFlagPath() {
-        return wineRuntimeDir() / "capture-exclusion";
-    }
-
     void writeTerminalFlags() {
         if (hostOS() != HostOS::Linux) {
             return;
@@ -513,10 +505,6 @@ namespace {
         std::ofstream terminalEnabledFile(terminalEnabledFlagPath(), std::ios::trunc);
         if (terminalEnabledFile) {
             terminalEnabledFile << (isTerminalEnabled() ? "1\n" : "0\n");
-        }
-        std::ofstream captureExclusionFile(captureExclusionFlagPath(), std::ios::trunc);
-        if (captureExclusionFile) {
-            captureExclusionFile << (isCaptureExclusionEnabled() ? "1\n" : "0\n");
         }
     }
 
@@ -600,11 +588,7 @@ chmod 700 "$RUNDIR" 2>/dev/null || true
 LOG="$RUNDIR/terminal.log"
 CLOSE="$RUNDIR/close"
 PIDFILE="$RUNDIR/kitty.pid"
-CAPTURE_FLAG="$RUNDIR/capture-exclusion"
 CLASS="afterflow"
-if [ -r "$CAPTURE_FLAG" ] && [ "$(cat "$CAPTURE_FLAG" 2>/dev/null)" = "0" ]; then
-    CLASS="afterflow-nocapture"
-fi
 
 if [ "${1:-}" = "--inside" ]; then
     clear
@@ -661,14 +645,11 @@ raise_window() {
         ws="$(hyprctl activeworkspace -j 2>/dev/null | sed -n 's/.*"id": *\([0-9][0-9]*\).*/\1/p' | head -n 1)"
     fi
     [ -n "${ws:-}" ] || ws=1
-    local cls
-    for cls in afterflow afterflow-nocapture; do
-        hyprctl dispatch "hl.dsp.window.move({ workspace = $ws, window = \"class:$cls\" })" >/dev/null 2>&1 || true
-        hyprctl dispatch "hl.dsp.window.center({ window = \"class:$cls\" })" >/dev/null 2>&1 || true
-        hyprctl dispatch "hl.dsp.window.bring_to_top({ window = \"class:$cls\" })" >/dev/null 2>&1 || true
-        hyprctl dispatch "hl.dsp.window.alter_zorder({ mode = \"top\", window = \"class:$cls\" })" >/dev/null 2>&1 || true
-        hyprctl dispatch "hl.dsp.focus({ window = \"class:$cls\" })" >/dev/null 2>&1 || true
-    done
+    hyprctl dispatch "hl.dsp.window.move({ workspace = $ws, window = \"class:afterflow\" })" >/dev/null 2>&1 || true
+    hyprctl dispatch "hl.dsp.window.center({ window = \"class:afterflow\" })" >/dev/null 2>&1 || true
+    hyprctl dispatch "hl.dsp.window.bring_to_top({ window = \"class:afterflow\" })" >/dev/null 2>&1 || true
+    hyprctl dispatch "hl.dsp.window.alter_zorder({ mode = \"top\", window = \"class:afterflow\" })" >/dev/null 2>&1 || true
+    hyprctl dispatch "hl.dsp.focus({ window = \"class:afterflow\" })" >/dev/null 2>&1 || true
 }
 
 terminal_running() {
@@ -696,7 +677,7 @@ if terminal_running; then
     if command -v jq >/dev/null 2>&1; then
         active_ws="$(hyprctl activeworkspace -j 2>/dev/null | jq -r '.id // empty' | head -n 1)"
         active_addr="$(hyprctl activewindow -j 2>/dev/null | jq -r '.address // empty' | head -n 1)"
-        terminal_info="$(hyprctl clients -j 2>/dev/null | jq -r '.[] | select(.class == "afterflow" or .class == "afterflow-nocapture") | "\(.address) \(.workspace.id)"' | head -n 1)"
+        terminal_info="$(hyprctl clients -j 2>/dev/null | jq -r '.[] | select(.class == "afterflow") | "\(.address) \(.workspace.id)"' | head -n 1)"
         terminal_addr="${terminal_info%% *}"
         terminal_ws="${terminal_info##* }"
         if [ -n "${terminal_addr:-}" ] && { [ "$terminal_addr" != "${active_addr:-}" ] || [ "$terminal_ws" != "${active_ws:-}" ]; }; then
@@ -825,7 +806,6 @@ $trigger = Join-Path $PSScriptRoot 'afterflow-cycle-stage'
 $pidFile = Join-Path $PSScriptRoot 'afterflow-terminal.pid'
 $closeFile = Join-Path $PSScriptRoot 'afterflow-terminal.close'
 $errorFile = Join-Path $PSScriptRoot 'afterflow-terminal.error'
-$captureExclusion = __AFTERFLOW_CAPTURE_EXCLUSION__
 
 Remove-Item -LiteralPath $closeFile -Force -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath $errorFile -Force -ErrorAction SilentlyContinue
@@ -841,9 +821,6 @@ using System;
 using System.Runtime.InteropServices;
 
 public static class AfterflowNative {
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
-
     [DllImport("user32.dll")]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
 }
@@ -951,37 +928,7 @@ public static class AfterflowNative {
     })
     $timer.Start()
 
-    $form.Add_HandleCreated({
-        if (-not $captureExclusion) {
-            return
-        }
-        try {
-            [void][AfterflowNative]::SetWindowDisplayAffinity($form.Handle, [uint32]0x11)
-        }
-        catch {
-        }
-    })
-
     $form.Add_Shown({
-        if ($captureExclusion) {
-            try {
-                $ok = [AfterflowNative]::SetWindowDisplayAffinity($form.Handle, [uint32]0x11)
-                if (-not $ok) {
-                    $errorCode = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
-                    $legacyOk = [AfterflowNative]::SetWindowDisplayAffinity($form.Handle, [uint32]0x1)
-                    if ($legacyOk) {
-                        $form.Text = 'Afterflow (legacy capture exclusion)'
-                        $text.AppendText("[afterflow] WDA_EXCLUDEFROMCAPTURE is unavailable; using WDA_MONITOR. The window may appear black in captures.`r`n")
-                    }
-                    else {
-                        $form.Text = 'Afterflow (capture exclusion unavailable)'
-                        $text.AppendText("[afterflow] Could not enable capture exclusion (error $errorCode). Windows 10 2004 or newer is required.`r`n")
-                    }
-                }
-            }
-            catch {
-            }
-        }
         $form.Activate()
         [void][AfterflowNative]::SetForegroundWindow($form.Handle)
     })
@@ -999,16 +946,6 @@ finally {
     Remove-Item -LiteralPath $closeFile -Force -ErrorAction SilentlyContinue
 }
 )PS";
-
-        std::string captureMarker = "__AFTERFLOW_CAPTURE_EXCLUSION__";
-        auto capturePosition = script.find(captureMarker);
-        if (capturePosition != std::string::npos) {
-            script.replace(
-                capturePosition,
-                captureMarker.size(),
-                isCaptureExclusionEnabled() ? "$true" : "$false"
-            );
-        }
 
 #ifdef _WIN32
         auto logName = "'" + g_windowsTerminalLogFileName + "'";
@@ -1561,17 +1498,6 @@ finally {
 
     bool isGhost(PlayerObject* playerObject) {
         return playerObject && (playerObject == state.ghostPlayer1 || playerObject == state.ghostPlayer2);
-    }
-
-    void applyCaptureExclusionDefault() {
-        if (hostOS() == HostOS::Mac) {
-            return;
-        }
-        if (Mod::get()->getSavedValue<bool>("capture-exclusion-default-off", false)) {
-            return;
-        }
-        Mod::get()->setSettingValue<bool>("capture-exclusion", false);
-        Mod::get()->setSavedValue("capture-exclusion-default-off", true);
     }
 
     void resetPending() {
@@ -3024,7 +2950,6 @@ $on_mod(Loaded) {
     }
     state.stageIndex = savedStageIndex;
     readSettings();
-    applyCaptureExclusionDefault();
     applyStage();
     removeLegacyTerminalLogs();
     resetTerminalLog();
@@ -3036,15 +2961,6 @@ $on_mod(Loaded) {
             closeTerminal();
         }
     });
-    if (hostOS() != HostOS::Mac) {
-        listenForSettingChanges<bool>("capture-exclusion", [](bool) {
-            writeTerminalFlags();
-            if (hostOS() == HostOS::Windows) {
-                writeTerminalScript();
-            }
-            closeTerminal();
-        });
-    }
     say("starting mode: {}", stageBanner());
     say("{} in-level cycles: 2/2 -> 4/4 -> 8/8 -> 16/8 -> 24/12 -> 32/16 -> 40/20 -> off", stageKey());
     say("{} toggles the terminal", terminalKey());

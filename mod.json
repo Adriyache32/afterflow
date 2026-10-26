@@ -26,13 +26,6 @@
             "description": "allow the terminal key to open the afterflow log window",
             "default": true
         },
-        "capture-exclusion": {
-            "type": "bool",
-            "name": "hide terminal from captures",
-            "description": "keep the terminal out of obs and other captures on hyprland and windows",
-            "default": false,
-            "platforms": ["win"]
-        },
         "keybinds-title": {
             "type": "title",
             "name": "keybinds",
