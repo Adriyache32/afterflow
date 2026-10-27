@@ -6,6 +6,7 @@
 #include <Geode/loader/SettingV3.hpp>
 #include <Geode/utils/Keyboard.hpp>
 #include <Geode/ui/GeodeUI.hpp>
+#include <Geode/ui/Notification.hpp>
 #include <Geode/ui/Popup.hpp>
 #include <Geode/modify/MenuLayer.hpp>
 #include <Geode/modify/EffectGameObject.hpp>
@@ -549,6 +550,13 @@ namespace {
         return directory.empty() ? std::filesystem::path("afterflow-terminal.close") : directory / "afterflow-terminal.close";
     }
 
+#ifdef _WIN32
+    std::filesystem::path windowsTerminalErrorPath() {
+        auto directory = tempDirectory();
+        return directory.empty() ? std::filesystem::path("afterflow-terminal.error") : directory / "afterflow-terminal.error";
+    }
+#endif
+
     std::filesystem::path terminalScriptPath() {
         if (hostOS() == HostOS::Linux) {
             return wineRuntimeDir() / "terminal.sh";
@@ -819,15 +827,6 @@ $form = $null
 try {
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
-    Add-Type -TypeDefinition @'
-using System;
-using System.Runtime.InteropServices;
-
-public static class AfterflowNative {
-    [DllImport("user32.dll")]
-    public static extern bool SetForegroundWindow(IntPtr hWnd);
-}
-'@
 
     [System.Windows.Forms.Application]::EnableVisualStyles()
 
@@ -841,6 +840,8 @@ public static class AfterflowNative {
     $form.Font = New-Object System.Drawing.Font('Consolas', 11)
     $form.KeyPreview = $true
     $form.TopMost = $true
+    $form.ShowInTaskbar = $true
+    $form.WindowState = [System.Windows.Forms.FormWindowState]::Normal
 
     $text = New-Object System.Windows.Forms.RichTextBox
     $text.Dock = [System.Windows.Forms.DockStyle]::Fill
@@ -933,7 +934,7 @@ public static class AfterflowNative {
 
     $form.Add_Shown({
         $form.Activate()
-        [void][AfterflowNative]::SetForegroundWindow($form.Handle)
+        $form.BringToFront()
     })
 
     [System.Windows.Forms.Application]::Run($form)
@@ -973,9 +974,9 @@ finally {
 
         outputFile << "Set fso = CreateObject(\"Scripting.FileSystemObject\")\r\n"
                       "scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)\r\n"
-                      "ps = fso.BuildPath(fso.GetSpecialFolder(1), \"WindowsPowerShell\\v1.0\\powershell.exe\")\r\n"
+                      "ps = fso.BuildPath(fso.GetSpecialFolder(1).Path, \"WindowsPowerShell\\v1.0\\powershell.exe\")\r\n"
                       "q = Chr(34)\r\n"
-                      "command = q & ps & q & \" -NoProfile -STA -ExecutionPolicy Bypass -File \" & q & scriptDir & \"\\afterflow-terminal.ps1\" & q\r\n"
+                      "command = q & ps & q & \" -NoLogo -NoProfile -STA -ExecutionPolicy Bypass -File \" & q & scriptDir & \"\\afterflow-terminal.ps1\" & q\r\n"
                       "CreateObject(\"WScript.Shell\").Run command, 0, False\r\n";
     }
 
@@ -1022,6 +1023,15 @@ finally {
         }
     }
 
+#ifdef _WIN32
+    void resetWindowsTerminalState() {
+        std::error_code errorCode;
+        std::filesystem::remove(windowsTerminalPidPath(), errorCode);
+        std::filesystem::remove(windowsTerminalClosePath(), errorCode);
+        std::filesystem::remove(windowsTerminalErrorPath(), errorCode);
+    }
+#endif
+
     void resetTerminalLog() {
         writeTerminalFlags();
         if (hostOS() == HostOS::Linux) {
@@ -1054,6 +1064,7 @@ finally {
 #ifdef _WIN32
             g_windowsTerminalLogFileName = fmt::format("afterflow-terminal-{}.log", GetCurrentProcessId());
             closeTerminalLog();
+            resetWindowsTerminalState();
             auto logPath = terminalLogPath().wstring();
             g_terminalLogHandle = CreateFileW(
                 logPath.c_str(),
@@ -1324,6 +1335,178 @@ finally {
 
 #ifdef _WIN32
 
+    std::filesystem::path windowsPowerShellExecutablePath() {
+        wchar_t systemDirectory[MAX_PATH] = {};
+        UINT systemDirectoryLength = GetSystemDirectoryW(systemDirectory, MAX_PATH);
+        if (systemDirectoryLength > 0 && systemDirectoryLength < MAX_PATH) {
+            auto powerShellPath = std::filesystem::path(systemDirectory) / "WindowsPowerShell" / "v1.0" / "powershell.exe";
+            std::error_code errorCode;
+            if (std::filesystem::exists(powerShellPath, errorCode)) {
+                return powerShellPath;
+            }
+        }
+
+        for (auto const* executableName : { L"powershell.exe", L"pwsh.exe" }) {
+            wchar_t foundPath[MAX_PATH] = {};
+            DWORD foundLength = SearchPathW(nullptr, executableName, nullptr, MAX_PATH, foundPath, nullptr);
+            if (foundLength > 0 && foundLength < MAX_PATH) {
+                return std::filesystem::path(foundPath);
+            }
+        }
+
+        return {};
+    }
+
+    void bringWindowsTerminalToFront(HWND terminalWindow) {
+        if (!terminalWindow) {
+            return;
+        }
+        if (IsIconic(terminalWindow)) {
+            ShowWindow(terminalWindow, SW_RESTORE);
+        }
+        else {
+            ShowWindow(terminalWindow, SW_SHOW);
+        }
+        SetWindowPos(
+            terminalWindow,
+            HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW
+        );
+        SetForegroundWindow(terminalWindow);
+    }
+
+    void focusWindowsTerminalWhenReady(DWORD processId) {
+        std::thread([processId] {
+            for (int attempt = 0; attempt < 50; ++attempt) {
+                Sleep(100);
+                HWND terminalWindow = FindWindowW(nullptr, L"Afterflow");
+                if (!terminalWindow) {
+                    continue;
+                }
+                DWORD windowProcessId = 0;
+                GetWindowThreadProcessId(terminalWindow, &windowProcessId);
+                if (windowProcessId == processId) {
+                    bringWindowsTerminalToFront(terminalWindow);
+                    return;
+                }
+            }
+        }).detach();
+    }
+
+    void monitorWindowsTerminalProcess(DWORD processId) {
+        std::thread([processId] {
+            HANDLE processHandle = OpenProcess(
+                SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processId
+            );
+            if (!processHandle) {
+                return;
+            }
+            DWORD waitResult = WaitForSingleObject(processHandle, 5000);
+            CloseHandle(processHandle);
+            if (waitResult != WAIT_OBJECT_0) {
+                return;
+            }
+
+            std::ifstream errorFile(windowsTerminalErrorPath());
+            std::string errorLine;
+            if (!std::getline(errorFile, errorLine) || errorLine.empty()) {
+                return;
+            }
+            log::warn("terminal process exited: {}", errorLine);
+            geode::queueInMainThread([] {
+                Notification::create("Afterflow terminal failed to open", NotificationIcon::Error)->show();
+            });
+        }).detach();
+    }
+
+    bool launchWindowsTerminal() {
+        writeWindowsTerminalPowerShell();
+
+        auto powerShellPath = windowsPowerShellExecutablePath();
+        if (powerShellPath.empty()) {
+            log::warn("could not find powershell.exe or pwsh.exe");
+            return false;
+        }
+
+        auto scriptPath = windowsTerminalPowerShellPath();
+        std::error_code errorCode;
+        if (!std::filesystem::exists(scriptPath, errorCode)) {
+            log::warn("terminal script was not created: {}", scriptPath.string());
+            return false;
+        }
+
+        auto commandLine = L"\"" + powerShellPath.wstring()
+            + L"\" -NoLogo -NoProfile -STA -ExecutionPolicy Bypass -File \""
+            + scriptPath.wstring() + L"\"";
+        auto workingDirectory = scriptPath.parent_path().wstring();
+
+        STARTUPINFOW startupInfo = {};
+        startupInfo.cb = sizeof(startupInfo);
+        PROCESS_INFORMATION processInfo = {};
+        BOOL created = CreateProcessW(
+            powerShellPath.c_str(),
+            commandLine.data(),
+            nullptr,
+            nullptr,
+            FALSE,
+            CREATE_NO_WINDOW,
+            nullptr,
+            workingDirectory.empty() ? nullptr : workingDirectory.c_str(),
+            &startupInfo,
+            &processInfo
+        );
+        if (!created) {
+            log::warn("could not start powershell terminal (error {})", GetLastError());
+            return false;
+        }
+
+        {
+            std::ofstream pidFile(windowsTerminalPidPath(), std::ios::trunc);
+            if (pidFile) {
+                pidFile << processInfo.dwProcessId;
+            }
+        }
+
+        log::info("started terminal process {}", processInfo.dwProcessId);
+        focusWindowsTerminalWhenReady(processInfo.dwProcessId);
+        monitorWindowsTerminalProcess(processInfo.dwProcessId);
+        CloseHandle(processInfo.hThread);
+        CloseHandle(processInfo.hProcess);
+        return true;
+    }
+
+    bool launchWindowsTerminalWithWScript() {
+        writeWindowsTerminalScript();
+
+        auto scriptPath = windowsTerminalScriptPath();
+        std::error_code errorCode;
+        if (!std::filesystem::exists(scriptPath, errorCode)) {
+            log::warn("terminal launcher was not created: {}", scriptPath.string());
+            return false;
+        }
+
+        auto workingDirectory = scriptPath.parent_path().wstring();
+        auto parameters = L"\"" + scriptPath.wstring() + L"\"";
+        auto shellResult = ShellExecuteW(
+            nullptr,
+            L"open",
+            L"wscript.exe",
+            parameters.c_str(),
+            workingDirectory.empty() ? nullptr : workingDirectory.c_str(),
+            SW_HIDE
+        );
+        auto shellResultCode = reinterpret_cast<INT_PTR>(shellResult);
+        if (shellResultCode <= 32) {
+            log::warn("could not open terminal launcher (shell execute returned {})", shellResultCode);
+            return false;
+        }
+        return true;
+    }
+
     bool windowsTerminalRunning() {
         std::ifstream inputFile(windowsTerminalPidPath());
         unsigned long processId = 0;
@@ -1483,18 +1666,22 @@ finally {
         }
 
 #ifdef _WIN32
-        if (windowsTerminalRunning() || FindWindowW(nullptr, L"Afterflow")) {
+        if (HWND terminalWindow = FindWindowW(nullptr, L"Afterflow")) {
+            if (GetForegroundWindow() != terminalWindow) {
+                bringWindowsTerminalToFront(terminalWindow);
+                return;
+            }
             closeTerminal();
             return;
         }
 
-        auto scriptPath = windowsTerminalScriptPath();
-        auto workingDirectory = scriptPath.parent_path();
-        auto parameters = L"\"" + scriptPath.wstring() + L"\"";
-        auto shellResult = ShellExecuteW(nullptr, L"open", L"wscript.exe", parameters.c_str(), workingDirectory.c_str(), SW_HIDE);
-        auto shellResultCode = reinterpret_cast<INT_PTR>(shellResult);
-        if (shellResultCode <= 32) {
-            log::warn("could not open terminal launcher (shell execute returned {})", shellResultCode);
+        if (windowsTerminalRunning()) {
+            closeTerminal();
+            return;
+        }
+
+        if (!launchWindowsTerminal() && !launchWindowsTerminalWithWScript()) {
+            Notification::create("Afterflow terminal failed to open", NotificationIcon::Error)->show();
         }
 #else
         log::warn("terminal is not available on this platform");

@@ -1,3 +1,7 @@
+# v2.1.3
+
+- [fix] windows terminal not showing.
+
 # v2.1.2
 
 macos support
