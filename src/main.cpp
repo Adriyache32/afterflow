@@ -1793,8 +1793,9 @@ finally {
     }
 
 #ifdef GEODE_IS_ANDROID
-    class AfterflowOverlay : public CCLayerColor {
+    class AfterflowOverlay : public CCLayer {
     protected:
+        CCLayerColor* m_dim = nullptr;
         CCScale9Sprite* m_panel = nullptr;
         CCLabelBMFont* m_stageLabel = nullptr;
         ButtonSprite* m_powerSprite = nullptr;
@@ -1818,12 +1819,11 @@ finally {
 
         void setOpen(bool open) {
             m_open = open;
-            this->setVisible(open);
-            this->setTouchEnabled(open);
-            if (m_panel) {
-                m_panel->setVisible(true);
+            if (m_dim) {
+                m_dim->setVisible(open);
             }
             refresh();
+            log::info("[afterflow] menu {}", open ? "open" : "closed");
         }
 
     public:
@@ -1838,31 +1838,33 @@ finally {
         }
 
         bool init() override {
-            if (!CCLayerColor::init()) {
+            if (!CCLayer::init()) {
                 return false;
             }
             this->setID("afterflow-overlay"_spr);
-            this->setColor({ 0, 0, 0 });
-            this->setOpacity(120);
-            this->setVisible(false);
-            this->setTouchEnabled(false);
 
             auto winSize = CCDirector::get()->getWinSize();
+            log::info("[afterflow] overlay init winSize {}x{}", winSize.width, winSize.height);
+
+            m_dim = CCLayerColor::create({ 0, 0, 0, 110 }, winSize.width, winSize.height);
+            m_dim->setVisible(false);
+            m_dim->setID("afterflow-dim"_spr);
+            this->addChild(m_dim, 1);
 
             m_panel = CCScale9Sprite::create("GJ_square01.png");
-            m_panel->setContentSize({ 270.f, 140.f });
+            m_panel->setContentSize({ 280.f, 150.f });
             m_panel->setPosition({ winSize.width / 2.f, winSize.height / 2.f });
             m_panel->setID("afterflow-panel"_spr);
-            this->addChild(m_panel, 2);
+            m_dim->addChild(m_panel, 2);
 
             auto title = CCLabelBMFont::create("AFTERFLOW", "goldFont.fnt");
             title->setScale(0.75f);
-            title->setPosition({ 135.f, 116.f });
+            title->setPosition({ 140.f, 124.f });
             m_panel->addChild(title);
 
             m_stageLabel = CCLabelBMFont::create("", "bigFont.fnt");
-            m_stageLabel->setScale(0.42f);
-            m_stageLabel->setPosition({ 135.f, 88.f });
+            m_stageLabel->setScale(0.4f);
+            m_stageLabel->setPosition({ 140.f, 96.f });
             m_panel->addChild(m_stageLabel);
 
             auto menu = CCMenu::create();
@@ -1870,28 +1872,28 @@ finally {
             m_panel->addChild(menu);
 
             auto prevButton = CCMenuItemSpriteExtra::create(
-                ButtonSprite::create("<", "goldFont.fnt", "GJ_button_04.png", .7f),
+                ButtonSprite::create("<", "goldFont.fnt", "GJ_button_04.png", .75f),
                 this,
                 menu_selector(AfterflowOverlay::onPrev)
             );
-            prevButton->setPosition({ 42.f, 42.f });
+            prevButton->setPosition({ 45.f, 45.f });
             menu->addChild(prevButton);
 
             auto powerButton = CCMenuItemSpriteExtra::create(
-                ButtonSprite::create("on", "goldFont.fnt", "GJ_button_01.png", .8f),
+                ButtonSprite::create("on", "goldFont.fnt", "GJ_button_01.png", .85f),
                 this,
                 menu_selector(AfterflowOverlay::onPower)
             );
-            powerButton->setPosition({ 135.f, 42.f });
+            powerButton->setPosition({ 140.f, 45.f });
             menu->addChild(powerButton);
             m_powerSprite = typeinfo_cast<ButtonSprite*>(powerButton->getNormalImage());
 
             auto nextButton = CCMenuItemSpriteExtra::create(
-                ButtonSprite::create(">", "goldFont.fnt", "GJ_button_04.png", .7f),
+                ButtonSprite::create(">", "goldFont.fnt", "GJ_button_04.png", .75f),
                 this,
                 menu_selector(AfterflowOverlay::onNext)
             );
-            nextButton->setPosition({ 228.f, 42.f });
+            nextButton->setPosition({ 235.f, 45.f });
             menu->addChild(nextButton);
 
             auto closeButton = CCMenuItemSpriteExtra::create(
@@ -1899,7 +1901,7 @@ finally {
                 this,
                 menu_selector(AfterflowOverlay::onClose)
             );
-            closeButton->setPosition({ 244.f, 116.f });
+            closeButton->setPosition({ 252.f, 124.f });
             menu->addChild(closeButton);
 
             auto fabMenu = CCMenu::create();
@@ -1907,33 +1909,27 @@ finally {
             this->addChild(fabMenu, 3);
 
             m_fab = CCMenuItemSpriteExtra::create(
-                ButtonSprite::create("A", "goldFont.fnt", "GJ_button_01.png", .85f),
+                ButtonSprite::create("A", "goldFont.fnt", "GJ_button_01.png", .9f),
                 this,
                 menu_selector(AfterflowOverlay::onFab)
             );
-            m_fab->setPosition({ winSize.width - 30.f, 30.f });
+            m_fab->setPosition({ winSize.width - 34.f, 34.f });
             m_fab->setID("afterflow-fab"_spr);
             fabMenu->addChild(m_fab);
 
+            this->setTouchEnabled(true);
             refresh();
-            this->setVisible(true);
-            this->setOpacity(0);
+            log::info("[afterflow] overlay ready: fab at {}x{}", winSize.width - 34.f, 34.f);
             return true;
         }
 
         void onFab(CCObject*) {
-            bool opening = !m_open;
-            if (opening) {
-                this->setColor({ 0, 0, 0 });
-                this->setOpacity(120);
-            }
-            setOpen(opening);
-            this->setOpacity(opening ? 120 : 0);
+            setOpen(!m_open);
+            Notification::create(fmt::format("afterflow menu {}", m_open ? "on" : "off"), NotificationIcon::Info, 0.8f)->show();
         }
 
         void onClose(CCObject*) {
             setOpen(false);
-            this->setOpacity(0);
         }
 
         void onPrev(CCObject*) {
@@ -1966,13 +1962,12 @@ finally {
                 panelSize.width, panelSize.height);
             if (!panelRect.containsPoint(point)) {
                 setOpen(false);
-                this->setOpacity(0);
             }
             return true;
         }
 
         void registerWithTouchDispatcher() override {
-            CCTouchDispatcher::get()->addTargetedDelegate(this, -500, true);
+            CCTouchDispatcher::get()->addTargetedDelegate(this, -500, false);
         }
     };
 #endif
@@ -3401,6 +3396,10 @@ class $modify(BufPlayLayer, PlayLayer) {
         if (!this->getChildByID("afterflow-overlay"_spr)) {
             if (auto* overlay = AfterflowOverlay::create()) {
                 this->addChild(overlay, 1000);
+                log::info("[afterflow] overlay attached to PlayLayer");
+            }
+            else {
+                log::warn("[afterflow] overlay creation failed");
             }
         }
 #endif
