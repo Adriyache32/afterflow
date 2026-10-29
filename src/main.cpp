@@ -1957,17 +1957,8 @@ finally {
             if (!m_open || !m_panel) {
                 return false;
             }
-            if (std::chrono::steady_clock::now() - m_openedAt < std::chrono::milliseconds(250)) {
-                return true;
-            }
             auto point = touch->getLocation();
-            auto panelSize = m_panel->getContentSize();
-            auto panelPosition = m_panel->getPosition();
-            CCRect panelRect(panelPosition.x - panelSize.width * 0.5f, panelPosition.y - panelSize.height * 0.5f,
-                panelSize.width, panelSize.height);
-            if (!panelRect.containsPoint(point)) {
-                setOpen(false);
-            }
+            log::info("[afterflow] touch at {:.0f},{:.0f} (menu open)", point.x, point.y);
             return true;
         }
 
