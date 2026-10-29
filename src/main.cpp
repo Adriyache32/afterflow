@@ -1792,6 +1792,191 @@ finally {
             state.stageIndex + 1, state.ticksAllModes, state.ticksWaveMode, state.ticksAllModes / 4.f, state.ticksWaveMode / 4.f);
     }
 
+#ifdef GEODE_IS_ANDROID
+    class AfterflowOverlay : public CCLayerColor {
+    protected:
+        CCScale9Sprite* m_panel = nullptr;
+        CCLabelBMFont* m_stageLabel = nullptr;
+        ButtonSprite* m_powerSprite = nullptr;
+        CCMenuItemSpriteExtra* m_fab = nullptr;
+        bool m_open = false;
+
+        void refresh() {
+            if (!m_stageLabel) {
+                return;
+            }
+            if (state.isEnabled) {
+                m_stageLabel->setString(fmt::format("stage {} - {}t all / {}t wave", state.stageIndex + 1, state.ticksAllModes, state.ticksWaveMode).c_str());
+            }
+            else {
+                m_stageLabel->setString("stage off - raw input");
+            }
+            if (m_powerSprite) {
+                m_powerSprite->setString(state.isEnabled ? "on" : "off");
+            }
+        }
+
+        void setOpen(bool open) {
+            m_open = open;
+            this->setVisible(open);
+            this->setTouchEnabled(open);
+            if (m_panel) {
+                m_panel->setVisible(true);
+            }
+            refresh();
+        }
+
+    public:
+        static AfterflowOverlay* create() {
+            auto* overlay = new AfterflowOverlay();
+            if (overlay && overlay->init()) {
+                overlay->autorelease();
+                return overlay;
+            }
+            CC_SAFE_DELETE(overlay);
+            return nullptr;
+        }
+
+        bool init() override {
+            if (!CCLayerColor::init()) {
+                return false;
+            }
+            this->setID("afterflow-overlay"_spr);
+            this->setColor({ 0, 0, 0 });
+            this->setOpacity(120);
+            this->setVisible(false);
+            this->setTouchEnabled(false);
+
+            auto winSize = CCDirector::get()->getWinSize();
+
+            m_panel = CCScale9Sprite::create("GJ_square01.png");
+            m_panel->setContentSize({ 270.f, 140.f });
+            m_panel->setPosition({ winSize.width / 2.f, winSize.height / 2.f });
+            m_panel->setID("afterflow-panel"_spr);
+            this->addChild(m_panel, 2);
+
+            auto title = CCLabelBMFont::create("AFTERFLOW", "goldFont.fnt");
+            title->setScale(0.75f);
+            title->setPosition({ 135.f, 116.f });
+            m_panel->addChild(title);
+
+            m_stageLabel = CCLabelBMFont::create("", "bigFont.fnt");
+            m_stageLabel->setScale(0.42f);
+            m_stageLabel->setPosition({ 135.f, 88.f });
+            m_panel->addChild(m_stageLabel);
+
+            auto menu = CCMenu::create();
+            menu->setPosition({ 0.f, 0.f });
+            m_panel->addChild(menu);
+
+            auto prevButton = CCMenuItemSpriteExtra::create(
+                ButtonSprite::create("<", "goldFont.fnt", "GJ_button_04.png", .7f),
+                this,
+                menu_selector(AfterflowOverlay::onPrev)
+            );
+            prevButton->setPosition({ 42.f, 42.f });
+            menu->addChild(prevButton);
+
+            auto powerButton = CCMenuItemSpriteExtra::create(
+                ButtonSprite::create("on", "goldFont.fnt", "GJ_button_01.png", .8f),
+                this,
+                menu_selector(AfterflowOverlay::onPower)
+            );
+            powerButton->setPosition({ 135.f, 42.f });
+            menu->addChild(powerButton);
+            m_powerSprite = typeinfo_cast<ButtonSprite*>(powerButton->getNormalImage());
+
+            auto nextButton = CCMenuItemSpriteExtra::create(
+                ButtonSprite::create(">", "goldFont.fnt", "GJ_button_04.png", .7f),
+                this,
+                menu_selector(AfterflowOverlay::onNext)
+            );
+            nextButton->setPosition({ 228.f, 42.f });
+            menu->addChild(nextButton);
+
+            auto closeButton = CCMenuItemSpriteExtra::create(
+                ButtonSprite::create("x", "goldFont.fnt", "GJ_button_06.png", .55f),
+                this,
+                menu_selector(AfterflowOverlay::onClose)
+            );
+            closeButton->setPosition({ 244.f, 116.f });
+            menu->addChild(closeButton);
+
+            auto fabMenu = CCMenu::create();
+            fabMenu->setPosition({ 0.f, 0.f });
+            this->addChild(fabMenu, 3);
+
+            m_fab = CCMenuItemSpriteExtra::create(
+                ButtonSprite::create("A", "goldFont.fnt", "GJ_button_01.png", .85f),
+                this,
+                menu_selector(AfterflowOverlay::onFab)
+            );
+            m_fab->setPosition({ winSize.width - 30.f, 30.f });
+            m_fab->setID("afterflow-fab"_spr);
+            fabMenu->addChild(m_fab);
+
+            refresh();
+            this->setVisible(true);
+            this->setOpacity(0);
+            return true;
+        }
+
+        void onFab(CCObject*) {
+            bool opening = !m_open;
+            if (opening) {
+                this->setColor({ 0, 0, 0 });
+                this->setOpacity(120);
+            }
+            setOpen(opening);
+            this->setOpacity(opening ? 120 : 0);
+        }
+
+        void onClose(CCObject*) {
+            setOpen(false);
+            this->setOpacity(0);
+        }
+
+        void onPrev(CCObject*) {
+            cycleStage(-1);
+            refresh();
+        }
+
+        void onNext(CCObject*) {
+            cycleStage(1);
+            refresh();
+        }
+
+        void onPower(CCObject*) {
+            state.stageIndex = state.isEnabled ? (STAGE_TABLE_SIZE - 1) : 0;
+            Mod::get()->setSavedValue("stage", state.stageIndex);
+            resetPending();
+            applyStage();
+            refresh();
+            Notification::create(stageText(), NotificationIcon::Info, 1.2f)->show();
+        }
+
+        bool ccTouchBegan(CCTouch* touch, CCEvent*) override {
+            if (!m_open || !m_panel) {
+                return false;
+            }
+            auto point = touch->getLocation();
+            auto panelSize = m_panel->getContentSize();
+            auto panelPosition = m_panel->getPosition();
+            CCRect panelRect(panelPosition.x - panelSize.width * 0.5f, panelPosition.y - panelSize.height * 0.5f,
+                panelSize.width, panelSize.height);
+            if (!panelRect.containsPoint(point)) {
+                setOpen(false);
+                this->setOpacity(0);
+            }
+            return true;
+        }
+
+        void registerWithTouchDispatcher() override {
+            CCTouchDispatcher::get()->addTargetedDelegate(this, -500, true);
+        }
+    };
+#endif
+
     void dropGhosts() {
         for (auto** ghostSlot : { &state.ghostPlayer1, &state.ghostPlayer2 }) {
             if (*ghostSlot) {
@@ -3212,6 +3397,13 @@ class $modify(BufPlayLayer, PlayLayer) {
         state.wasAutoReleased = false;
         forgetPress();
         resetPending();
+#ifdef GEODE_IS_ANDROID
+        if (!this->getChildByID("afterflow-overlay"_spr)) {
+            if (auto* overlay = AfterflowOverlay::create()) {
+                this->addChild(overlay, 1000);
+            }
+        }
+#endif
         return true;
     }
 
