@@ -8,8 +8,12 @@ on:
 
 jobs:
   build:
-    name: Android64
+    name: ${{ matrix.target }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [Android64, Android32]
     steps:
       - uses: actions/checkout@v4
 
@@ -17,10 +21,10 @@ jobs:
         id: build
         with:
           sdk: given
-          target: Android64
+          target: ${{ matrix.target }}
           combine: true
 
       - uses: actions/upload-artifact@v4
         with:
-          name: afterflow-android64
+          name: afterflow-${{ matrix.target }}
           path: ${{ steps.build.outputs.build-output }}
