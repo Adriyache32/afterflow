@@ -14,6 +14,7 @@
 #include <Geode/modify/GameObject.hpp>
 #include <Geode/modify/HardStreak.hpp>
 #include <Geode/modify/LevelEditorLayer.hpp>
+#include <Geode/modify/PauseLayer.hpp>
 #include <Geode/modify/PlayLayer.hpp>
 #include <Geode/modify/PlayerObject.hpp>
 #include <Geode/modify/RingObject.hpp>
@@ -1138,6 +1139,10 @@ finally {
     }
 
     bool showKeybindIntro() {
+#ifdef GEODE_IS_ANDROID
+        // no physical keyboard on phones: the pause-menu buttons are the controls
+        return false;
+#endif
         if (Mod::get()->getSavedValue<bool>(KEYBIND_INTRO_DONE, false)) {
             return false;
         }
@@ -3269,6 +3274,46 @@ class $modify(BufMenuLayer, MenuLayer) {
         ));
         return true;
     }
+};
+
+class $modify(BufPauseLayer, PauseLayer) {
+    void customSetup() {
+        PauseLayer::customSetup();
+#ifdef GEODE_IS_ANDROID
+        auto menu = CCMenu::create();
+        menu->setPosition({ 0.f, 0.f });
+        menu->setID("afterflow-mobile-menu"_spr);
+
+        auto stageButton = CCMenuItemSpriteExtra::create(
+            ButtonSprite::create("stage", "goldFont.fnt", "GJ_button_05.png", .7f),
+            this,
+            menu_selector(BufPauseLayer::onCycleStage)
+        );
+        stageButton->setPosition({ 40.f, 40.f });
+        menu->addChild(stageButton);
+
+        auto infoButton = CCMenuItemSpriteExtra::create(
+            ButtonSprite::create("info", "goldFont.fnt", "GJ_button_05.png", .7f),
+            this,
+            menu_selector(BufPauseLayer::onShowStage)
+        );
+        infoButton->setPosition({ 40.f, 95.f });
+        menu->addChild(infoButton);
+
+        this->addChild(menu, 100);
+#endif
+    }
+
+#ifdef GEODE_IS_ANDROID
+    void onCycleStage(CCObject*) {
+        cycleStage(1);
+        Notification::create(stageText(), NotificationIcon::Info, 1.5f)->show();
+    }
+
+    void onShowStage(CCObject*) {
+        Notification::create(stageText(), NotificationIcon::Info, 2.f)->show();
+    }
+#endif
 };
 
 class $modify(BufEditorLayer, LevelEditorLayer) {
