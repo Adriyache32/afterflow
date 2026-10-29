@@ -1801,6 +1801,7 @@ finally {
         ButtonSprite* m_powerSprite = nullptr;
         CCMenuItemSpriteExtra* m_fab = nullptr;
         bool m_open = false;
+        std::chrono::steady_clock::time_point m_openedAt{};
 
         void refresh() {
             if (!m_stageLabel) {
@@ -1819,6 +1820,7 @@ finally {
 
         void setOpen(bool open) {
             m_open = open;
+            m_openedAt = std::chrono::steady_clock::now();
             if (m_dim) {
                 m_dim->setVisible(open);
             }
@@ -1954,6 +1956,9 @@ finally {
         bool ccTouchBegan(CCTouch* touch, CCEvent*) override {
             if (!m_open || !m_panel) {
                 return false;
+            }
+            if (std::chrono::steady_clock::now() - m_openedAt < std::chrono::milliseconds(250)) {
+                return true;
             }
             auto point = touch->getLocation();
             auto panelSize = m_panel->getContentSize();
