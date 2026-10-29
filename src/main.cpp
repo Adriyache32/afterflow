@@ -3856,6 +3856,11 @@ class $modify(BufBaseGameLayer, GJBaseGameLayer) {
     }
 
     void handleButton(bool isDown, int buttonId, bool isFirstPlayer) {
+        static int debugCounter = 0;
+        if (debugCounter < 40) {
+            ++debugCounter;
+            log::info("[afterflow] handleButton down={} id={} p1={} enabled={} stage={}", isDown, buttonId, isFirstPlayer, state.isEnabled, state.stageIndex);
+        }
         if (!state.isSimulating && buttonId == 1 && !state.isInjecting) {
             auto* player1 = this->m_player1;
             recordRealInput(isDown, player1);
