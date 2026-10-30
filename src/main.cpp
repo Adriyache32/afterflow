@@ -1803,6 +1803,9 @@ finally {
         ButtonSprite* m_powerSprite = nullptr;
         CCMenuItemSpriteExtra* m_fab = nullptr;
         bool m_open = false;
+        bool m_dragging = false;
+        CCPoint m_dragStart{};
+        CCPoint m_dragOrigin{};
         std::chrono::steady_clock::time_point m_openedAt{};
 
         void refresh() {
@@ -1936,7 +1939,9 @@ finally {
                 this,
                 menu_selector(AfterflowOverlay::onFab)
             );
-            m_fab->setPosition({ winSize.width - 34.f, 34.f });
+            float fabX = Mod::get()->getSavedValue<float>("fab-x", winSize.width - 34.f);
+            float fabY = Mod::get()->getSavedValue<float>("fab-y", 34.f);
+            m_fab->setPosition({ fabX, fabY });
             m_fab->setID("afterflow-fab"_spr);
             fabMenu->addChild(m_fab);
 
@@ -1983,12 +1988,55 @@ finally {
         }
 
         bool ccTouchBegan(CCTouch* touch, CCEvent*) override {
-            if (!m_open || !m_panel) {
-                return false;
-            }
             auto point = touch->getLocation();
-            log::info("[afterflow] touch at {:.0f},{:.0f} (menu open)", point.x, point.y);
+            if (!m_open) {
+                if (!m_fab || !m_fab->getParent()) {
+                    return false;
+                }
+                auto bb = m_fab->boundingBox();
+                auto menu = m_fab->getParent();
+                auto bottomLeft = menu->convertToWorldSpace({ bb.origin.x, bb.origin.y });
+                auto topRight = menu->convertToWorldSpace({ bb.origin.x + bb.size.width, bb.origin.y + bb.size.height });
+                CCRect worldRect(bottomLeft.x - 20.f, bottomLeft.y - 20.f,
+                    (topRight.x - bottomLeft.x) + 40.f, (topRight.y - bottomLeft.y) + 40.f);
+                if (!worldRect.containsPoint(point)) {
+                    return false;
+                }
+                m_dragging = true;
+                m_dragStart = point;
+                m_dragOrigin = m_fab->getPosition();
+                return true;
+            }
             return true;
+        }
+
+        void ccTouchMoved(CCTouch* touch, CCEvent*) override {
+            if (!m_dragging || !m_fab) {
+                return;
+            }
+            auto menu = m_fab->getParent();
+            if (!menu) {
+                return;
+            }
+            auto current = menu->convertToNodeSpace(touch->getLocation());
+            auto start = menu->convertToNodeSpace(m_dragStart);
+            m_fab->setPosition({ m_dragOrigin.x + (current.x - start.x), m_dragOrigin.y + (current.y - start.y) });
+        }
+
+        void ccTouchEnded(CCTouch* touch, CCEvent*) override {
+            if (!m_dragging || !m_fab) {
+                return;
+            }
+            m_dragging = false;
+            auto point = touch->getLocation();
+            float moved = std::abs(point.x - m_dragStart.x) + std::abs(point.y - m_dragStart.y);
+            if (moved < 14.f) {
+                setOpen(!m_open);
+            }
+            else {
+                Mod::get()->setSavedValue("fab-x", m_fab->getPosition().x);
+                Mod::get()->setSavedValue("fab-y", m_fab->getPosition().y);
+            }
         }
 
         void registerWithTouchDispatcher() override {
