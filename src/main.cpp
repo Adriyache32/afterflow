@@ -329,6 +329,7 @@ namespace {
     HoldStats tapHoldHistory, robotHoldHistory;
     int currentTick = 0;
     int lastPressTick = -1;
+    std::function<void(std::string const&)> g_feedback;
     InputKind lastPressKind = InputKind::Other;
     std::chrono::steady_clock::time_point clickStartTime;
     int debugBestDelay = 0;
@@ -1798,6 +1799,7 @@ finally {
         CCLayerColor* m_dim = nullptr;
         CCScale9Sprite* m_panel = nullptr;
         CCLabelBMFont* m_stageLabel = nullptr;
+        CCLabelBMFont* m_feedbackLabel = nullptr;
         ButtonSprite* m_powerSprite = nullptr;
         CCMenuItemSpriteExtra* m_fab = nullptr;
         bool m_open = false;
@@ -1818,6 +1820,21 @@ finally {
             }
         }
 
+        void showFeedback(std::string const& text) {
+            if (!m_feedbackLabel) {
+                return;
+            }
+            m_feedbackLabel->stopAllActions();
+            m_feedbackLabel->setString(text.c_str());
+            m_feedbackLabel->setVisible(true);
+            m_feedbackLabel->setOpacity(255);
+            m_feedbackLabel->runAction(CCSequence::create(
+                CCDelayTime::create(0.9f),
+                CCFadeOut::create(0.35f),
+                nullptr
+            ));
+        }
+
         void setOpen(bool open) {
             m_open = open;
             m_openedAt = std::chrono::steady_clock::now();
@@ -1829,6 +1846,10 @@ finally {
         }
 
     public:
+        ~AfterflowOverlay() override {
+            g_feedback = nullptr;
+        }
+
         static AfterflowOverlay* create() {
             auto* overlay = new AfterflowOverlay();
             if (overlay && overlay->init()) {
@@ -1918,6 +1939,14 @@ finally {
             m_fab->setPosition({ winSize.width - 34.f, 34.f });
             m_fab->setID("afterflow-fab"_spr);
             fabMenu->addChild(m_fab);
+
+            m_feedbackLabel = CCLabelBMFont::create("", "bigFont.fnt");
+            m_feedbackLabel->setScale(0.35f);
+            m_feedbackLabel->setPosition({ winSize.width - 80.f, 62.f });
+            m_feedbackLabel->setVisible(false);
+            this->addChild(m_feedbackLabel, 4);
+
+            g_feedback = [this](std::string const& text) { showFeedback(text); };
 
             this->setTouchEnabled(true);
             refresh();
@@ -3221,6 +3250,9 @@ finally {
 
         if (isRobotPress) {
             releaseAfterTicks = robotUsedHoldTicks;
+        }
+        if (g_feedback) {
+            g_feedback(fmt::format("{}{} +{}t", isDown ? "press" : "release", tickTagText, savedTick));
         }
         say("saved {}{} +{}t ({:g}f)  {}->{}  [max {}]{}", isDown ? "press" : "release", tickTagText, savedTick, savedTick * TICK_DURATION, baseDelay, landingTick, maxDelayTicks,
             isCubeStyleWave && isMarginUsed ? std::string("  +margin")
