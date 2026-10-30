@@ -330,6 +330,8 @@ namespace {
     int currentTick = 0;
     int lastPressTick = -1;
     std::function<void(std::string const&)> g_feedback;
+    int g_tapCount = 0;
+    int g_saveCount = 0;
     InputKind lastPressKind = InputKind::Other;
     std::chrono::steady_clock::time_point clickStartTime;
     int debugBestDelay = 0;
@@ -1800,6 +1802,7 @@ finally {
         CCScale9Sprite* m_panel = nullptr;
         CCLabelBMFont* m_stageLabel = nullptr;
         CCLabelBMFont* m_feedbackLabel = nullptr;
+        CCLabelBMFont* m_statsLabel = nullptr;
         ButtonSprite* m_powerSprite = nullptr;
         CCMenuItemSpriteExtra* m_fab = nullptr;
         bool m_open = false;
@@ -1820,6 +1823,9 @@ finally {
             }
             if (m_powerSprite) {
                 m_powerSprite->setString(state.isEnabled ? "on" : "off");
+            }
+            if (m_statsLabel) {
+                m_statsLabel->setString(fmt::format("taps {}  saves {}", g_tapCount, g_saveCount).c_str());
             }
         }
 
@@ -1944,6 +1950,11 @@ finally {
             m_fab->setPosition({ fabX, fabY });
             m_fab->setID("afterflow-fab"_spr);
             fabMenu->addChild(m_fab);
+
+            m_statsLabel = CCLabelBMFont::create("", "bigFont.fnt");
+            m_statsLabel->setScale(0.34f);
+            m_statsLabel->setPosition({ 140.f, 72.f });
+            m_panel->addChild(m_statsLabel);
 
             m_feedbackLabel = CCLabelBMFont::create("", "bigFont.fnt");
             m_feedbackLabel->setScale(0.35f);
@@ -3299,6 +3310,7 @@ finally {
         if (isRobotPress) {
             releaseAfterTicks = robotUsedHoldTicks;
         }
+        ++g_saveCount;
         if (g_feedback) {
             g_feedback(fmt::format("{}{} +{}t", isDown ? "press" : "release", tickTagText, savedTick));
         }
@@ -3940,6 +3952,9 @@ class $modify(BufBaseGameLayer, GJBaseGameLayer) {
         if (debugCounter < 40) {
             ++debugCounter;
             log::info("[afterflow] handleButton down={} id={} p1={} enabled={} stage={}", isDown, buttonId, isFirstPlayer, state.isEnabled, state.stageIndex);
+        }
+        if (!state.isSimulating && buttonId == 1) {
+            ++g_tapCount;
         }
         if (!state.isSimulating && buttonId == 1 && !state.isInjecting) {
             auto* player1 = this->m_player1;
